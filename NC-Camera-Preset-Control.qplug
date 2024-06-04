@@ -1,0 +1,639 @@
+-- NC Camera Preset Control Plugin
+-- by Hori Shogo
+-- June 2024
+
+-- Information block for the plugin
+PluginInfo = {
+  Name = "Tools~NC Camera Preset Control",
+  Version = "1.0.0",
+  BuildVersion = "1.0.0.0",
+  Id = "6a96f761-aff0-483b-8a06-290e61e4c272",--<guid>
+  Author = "Hori Shogo",
+  Description = "NC Camera Preset Control \nv1.0.0",
+  ShowDebug = true,
+}
+
+function GetColor(props)
+  return { 0, 0, 0 }
+end
+
+function GetPrettyName(props)
+  return "NC Camera Preset Control v" .. PluginInfo.Version
+end
+--List the pages within the plugin
+PageNames = { "Control of Cameras" }
+function GetPages(props)
+  local pages = {}
+  for ix,name in ipairs(PageNames) do
+    table.insert(pages, {name = PageNames[ix]})
+  end
+  return pages
+end
+
+-- Define User configurable Properties of the plugin
+function GetProperties()
+  local props = {}
+  table.insert(props, {
+    Name = "Number of Cameras",
+    Type = "integer",
+    Min = 1,
+    Max = 21,
+    Value = 3,
+  })
+  table.insert(props, {
+    Name = "Number of Presets",
+    Type = "integer",
+    Min = 2,
+    Max = 30,
+    Value = 4,
+  })
+  return props
+end
+
+-- Defines the Controls used within the plugin
+function GetControls(props)
+  local ctrls = {}
+  local KnobControls = {
+    Name = {"Hold Time","Set Home Minute","Saved LED Time"},
+    MinVal = {0.5,0.5,0.5},
+    MaxVal = {5,120,5},
+    Default = {1,10,1},
+  }
+  
+  --Arrays of Controls
+  for i=1,props["Number of Cameras"].Value do
+    table.insert(ctrls, {
+      Name = "Preset Cam "..i,
+      ControlType = "Text",
+      Count = props["Number of Presets"].Value,
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  for i=1,props["Number of Cameras"].Value do
+    table.insert(ctrls, {
+      Name = "Preset Cam LED "..i,
+      ControlType = "Indicator",
+      IndicatorType = "Led",
+      Count = props["Number of Presets"].Value,
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  for i=1,props["Number of Cameras"].Value do
+    table.insert(ctrls, {
+      Name = "Cam Name "..i,
+      ControlType = "Text",
+      Count = 1,
+      DefaultValue = "none",
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  for i=1,props["Number of Cameras"].Value do
+    table.insert(ctrls, {
+      Name = "SaveLoad Cam "..i,
+      ControlType = "Button",
+      ButtonType = "Momentary",
+      Count = props["Number of Presets"].Value,
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  for i=1,props["Number of Cameras"].Value do
+    table.insert(ctrls, {
+      Name = "Set Home "..i,
+      ControlType = "Button",
+      ButtonType = "Toggle",
+      Count = 1,
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  for i=1,#KnobControls.Name do
+    table.insert(ctrls, {
+      Name = KnobControls.Name[i],
+      ControlType = "Knob",
+      ControlUnit = "Float",
+      Min = KnobControls.MinVal[i],
+      Max = KnobControls.MaxVal[i],
+      Count = 1,
+      DefaultValue = KnobControls.Default[i],
+      UserPin = true,
+      PinStyle = "Both",
+    })
+  end
+  ----------------------------------------------------------------
+  table.insert(ctrls, {
+    Name = "Export",
+    ControlType = "Button",
+    ButtonType = "Toggle",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Both",
+  })
+  table.insert(ctrls, {
+    Name = "Import",
+    ControlType = "Button",
+    ButtonType = "Toggle",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Both",
+  })
+  table.insert(ctrls, {
+    Name = "Memorytext",
+    ControlType = "Text",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Both",
+  })
+  table.insert(ctrls, {
+    Name = "Saved LED",
+    ControlType = "Indicator",
+    IndicatorType = "Led",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "Output",
+  })
+  table.insert(ctrls, {
+    Name = "MyID",
+    ControlType = "Indicator",
+    IndicatorType = "Text",
+    Count = 1,
+    UserPin = true,
+    PinStyle = "None",
+  })
+  return ctrls
+end
+
+--Layout of controls and graphics for the plugin UI to display
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+  local CurrentPage = PageNames[props["page_index"].Value]
+  local Colors = {
+    Black       = {0,0,0}, --Black
+    White       = {255,255,255}, --White
+    Red         = {255,0,0}, --Red
+    Blue        = {0,0,255}, --Blue
+    Lime        = {0,255,0}, --Lime
+    Gray        = {105,105,105}, --Light Gray
+    HGray       = {153,153,153}, -- Header Gray
+    AGray       = {153,153,153,163}, -- Alpha Header Gray
+    OffGray     = {124,124,124}, -- Gray
+    OnRed       = {229,53,57}, -- Orange Red
+    OffRed      = {124,0,0}, -- Off Red
+    Bar         = {156,171,175}, --Blue gray
+    BtnGray     = {51,51,51}, -- Button Baase BackGround
+    Background  = {50,50,50},  -- Background Color
+    FaderBlue   = {65,211,248}, -- Fader Blue Color
+    LightBlue   = {54,197,246}, -- Light Blue
+    OnlineGreen = {34,178,76}, -- Online Color
+    White0      = {255,255,255,0},-- White Alpha 1~0.1
+    Black0      = {0,0,0,0},-- Black Alpha 1~0.1
+    LightGray   = {231,231,231}, -- Light gray
+  }
+  
+  local cam_number = props["Number of Cameras"].Value
+  local pre_number = props["Number of Presets"].Value
+  local labels, ctrls, btn = {size={192,16}},{size={192,20}},{size={36,16}} --mainsize
+  local frame = {size={192,64}, size2={192,112}}
+  local xSpace, ySpace = 15, 16
+  local camframe = {192,170+ySpace*(pre_number-1)}
+  local zOerders = {back=-20, bar=-5, zero=0, labels=10, ctrl=20, front=1000}
+  
+  --Page Select----------------------------------------------------------------------------------------
+  if CurrentPage == "Control of Cameras" then
+  -----------------------------------------------------------------------------------------------------
+    table.insert(graphics,{--back frame
+      Type = "GroupBox",
+      Fill = Colors.White,
+      StrokeWidth = 1,
+      StrokeColor = Colors.Black,
+      Position = {3,0},
+      Size = {606,151},
+    })
+    table.insert(graphics,{
+      Type = "Text",
+      Text = "NC Camera Preset Control",
+      Position = {3,3},
+      Size = {606,16},
+      FontSize = 12,
+      Font ="Roboto",
+      FontStyle = "Medium",
+      HTextAlign = "Center",
+    })
+    for i=1, 3 do
+      table.insert(graphics,{--text frame
+        Type = "GroupBox",
+        Fill = Colors.White,
+        CornerRadius = 0,
+        StrokeWidth = 1,
+        Position = {3+207*(i-1),30},
+        Size = i==3 and frame.size2 or frame.size,
+      })
+    end
+  
+    local texts = {"Hold Time ( 0.5-5 second )","Saved LED Time ( 0.5-5 second )","Export Cameras Positions",
+    "Set Home Minutes ( 0.5- 120 minute )","Saved LED","Import Cameras Positions","Memory Text"}
+    for i = 1, #texts do
+      local colSizes = {3, 210, 417} -- X offset
+      local rowSizes = {30, 62, 94} -- Y offset
+      local col = i==#texts and 3 or (i - 1) % 3 + 1 -- col calculate
+      local row = math.ceil(i / 3) -- row calculate
+      local xpos, ypos = colSizes[col], rowSizes[row]
+      table.insert(graphics,{
+        Type = "Text",
+        Text = texts[i],
+        Position = {xpos,ypos},
+        Size = labels.size,
+        FontSize = 9,
+        Font ="Roboto",
+        HTextAlign = "Center",
+      })
+    end
+    local textCtrls = {
+    c_name = {"Hold Time","Saved LED Time","Export","Set Home Minute","Saved LED","Import","Memorytext"},
+    c_pretty = {"Hold Time","Saved LED Time","Export Cameras Positions","Set Home Minutes","Saved LED","Import Cameras Positions","Memory Text"},
+    c_ctrl = {"Text","Text","Button","Text","Button","Button","Text"},
+    c_colors = {Colors.Black,Colors.Black,Colors.White,Colors.Black,Colors.Red,Colors.White,Colors.White},
+    c_offcolors = {nil, nil, Colors.Lime, nil, Colors.OffRed, Colors.Blue, nil}
+    }
+    for i = 1, #textCtrls.c_name do
+      local colSizes = {3, 210, 417} -- X offset
+      local rowSizes = {46, 78, 110} -- Y offset
+      local col = i==#textCtrls.c_name and 3 or (i - 1) % 3 + 1 -- col calculate
+      local row = math.ceil(i / 3) -- row calculate
+      local xpos, ypos = colSizes[col], rowSizes[row]
+      layout[textCtrls.c_name[i]] = {
+        PrettyName = textCtrls.c_pretty[i],
+        Style = textCtrls.c_ctrl[i],
+        ButtonStyle = (textCtrls.c_name[i]=="Export" or textCtrls.c_name[i]=="Import") and "Trigger" or (textCtrls.c_name[i]=="Saved LED") and "Toggle" or nil,
+        ButtonVisualStyle = (textCtrls.c_name[i]=="Export" or textCtrls.c_name[i]=="Import") and "Flat" or nil,
+        Position = {xpos,ypos},
+        Size = i==#textCtrls.c_name and {192,32} or labels.size,
+        Color = textCtrls.c_colors[i],
+        UnlinkOffColor = (textCtrls.c_name[i]=="Export" or textCtrls.c_name[i]=="Import" or textCtrls.c_name[i]=="Saved LED") and true or nil,
+        OffColor = textCtrls.c_offcolors[i],
+        CornerRadius = 0,
+        Margin = 0,
+        StrokeWidth = (textCtrls.c_name[i]=="Export" or textCtrls.c_name[i]=="Import" or textCtrls.c_name[i]=="Saved LED" or textCtrls.c_name[i]=="Memorytext") and 1 or 0,
+        FontSize = 9,
+        HTextAlign = i==#textCtrls.c_name and "Left" or "Center",
+      }
+    end
+    table.insert(graphics,{
+      Type = "Text",
+      Text = "Script Access must be enabled.\nExport and import functions are not available.",
+      Position = {3,110},
+      Size = {192,32},
+      CornerRadius = 0,
+      Margin = 5,
+      StrokeWidth = 0,
+      FontSize = 9,
+      Font ="Roboto",
+      HTextAlign = "Left",
+    })
+    table.insert(graphics,{
+      Type = "Text",
+      Text = "To use the camera controls\nNC Cameras Script Access must be enabled.",
+      Position = {210,110},
+      Size = {192,32},
+      CornerRadius = 0,
+      Margin = 5,
+      StrokeWidth = 0,
+      FontSize = 9,
+      Font ="Roboto",
+      HTextAlign = "Left",
+    })
+    --local pre_offset = pre_number>4 and ySpace*(pre_number-4) or 0
+    local pre_offset = pre_number>1 and ySpace*(pre_number-1) or 0
+    local cam_frame = {size={192,114+pre_offset+2}}
+  
+    for x=1,cam_number do
+      local col = (x - 1) % 3 + 1 -- col calculate
+      local row = math.ceil(x / 3) -- row calculate
+      local colPos = {3, 210, 417} -- X offset
+      local ypos_offset = pre_number > 1 and pre_offset or 0
+      local rowPos = 160 + 120*(row - 1)+ypos_offset*(row - 1) -- Y offset
+      local xpos, ypos = colPos[col], rowPos
+      table.insert(graphics,{--camera frame
+        Type = "GroupBox",
+        Fill = Colors.White,
+        CornerRadius = 0,
+        StrokeWidth = 1,
+        StrokeColor = Colors.Black,
+        Position = {xpos,ypos},
+        Size = cam_frame.size,
+      })
+      table.insert(graphics,{
+        Type = "Text",
+        Text = "Name of Camera"..x,
+        Position = {xpos,ypos},
+        Size = labels.size,
+        FontSize = 9,
+        Font ="Roboto",
+        HTextAlign = "Center",
+      })
+      layout["Cam Name "..x] = {
+        PrettyName = "Camera "..x.."~".."Name "..x,
+        Style = "ComboBox",
+        Position = {xpos,ypos+16},
+        Size = ctrls.size,
+        Color = Colors.Black,
+        TextColor = Colors.White,
+        CornerRadius = 2,
+        Margin = 0,
+        StrokeColor = Colors.Black,
+        StrokeWidth = 1,
+        FontSize = 11,
+      }
+      table.insert(graphics,{
+        Type = "Text",
+        Text = "Set Home Time to Trigger",
+        Position = {xpos,ypos+36},
+        Size = labels.size,
+        FontSize = 9,
+        Font ="Roboto",
+        HTextAlign = "Center",
+      })
+      layout["Set Home "..x] = {
+        PrettyName = "Camera "..x.."~".."Set Home "..x,
+        Style = "Button",
+        ButtonStyle = "Toggle",
+        Position = {xpos,ypos+52},
+        Size = ctrls.size,
+        Color = Colors.Red,
+        UnlinkOffColor = true,
+        OffColor = Colors.Black,
+        CornerRadius = 2,
+        Margin = 0,
+        StrokeWidth = 1,
+        Legend = "Stop",
+        FontSize = 11,
+      }
+      table.insert(graphics,{
+        Type = "Text",
+        Text = "Short Press is Load\nLong Press is Save",
+        Position = {xpos,ypos+72},
+        Size = {96,26},
+        FontSize = 9,
+        Font ="Roboto",
+        HTextAlign = "Center",
+      })
+      table.insert(graphics,{
+        Type = "Text",
+        Text = "Save Positions",
+        Position = {xpos+96,ypos+82},
+        Size = {96,16},
+        FontSize = 9,
+        Font ="Roboto",
+        HTextAlign = "Center",
+      })
+  
+      for y=1,pre_number do
+        local y_offset = ySpace*(y-1)
+        local function CreateKey(key,x,y,pre_number)
+          if pre_number==1 then return key..x else return key..x.." "..y end
+        end
+        layout[CreateKey("Preset Cam LED ",x,y,pre_number)] = {
+          PrettyName = "Camera "..x.."~".."Preset Camera LED "..y,
+          Style = "LED",
+          Position = {xpos+44, ypos+98+y_offset},
+          Size = {16,16},
+          Margin = 3,
+          StrokeWidth = 1,
+        }
+        layout[CreateKey("SaveLoad Cam ",x,y,pre_number)] = {
+          PrettyName = "Camera "..x.."~".."Save Load Button "..y,
+          Style = "Button",
+          ButtonStyle = "Momentary",
+          Position = {xpos+44+16, ypos+98+y_offset},
+          Size = btn.size,
+          Color = Colors.White,
+          UnlinkOffColor = true,
+          OffColor = Colors.Black,
+          CornerRadius = 2,
+          Margin = 2,
+          Padding = 0,
+          StrokeWidth = 1,
+          FontSize = 9,
+          TextColor = Colors.Black,
+        }
+        layout[CreateKey("Preset Cam ",x,y,pre_number)] = {
+          PrettyName = "Camera "..x.."~".."Preset Camera Position "..y,
+          Style = "Text",
+          TextBoxStyle="NoBackground",
+          Position = {xpos+44+16+36, ypos+98+y_offset},
+          Size = {96,16},
+          StrokeWidth = 0,
+          FontSize = 9,
+        }
+        table.insert(graphics,{
+          Type = "Text",
+          Text = "Preset "..y,
+          Position = {xpos, ypos+98+y_offset},
+          Size = {44,16},
+          FontSize = 9,
+          Font ="Roboto",
+          HTextAlign = "Right",
+        })
+      end
+    end
+  
+  end
+  return layout, graphics
+end
+
+--Start event based logic
+if Controls then
+  json = require 'rapidjson'
+  -- Table to store camera names and Position
+  local cam_tbl = {}
+  local camPos = {}
+  local Cameras, CamerasHome = {}, {}
+  local PropPresetNum = Properties["Number of Presets"].Value --#Controls["Preset Cam 1"]
+  local repeatime = 0.2
+  ----------------------------------------------------------------------------------------------
+  -- Create func return table if not table to check if Controls type is table
+  function CheckTypeTable(control) return type(control) == "table" and control or {control} end
+  Controls["Cam Name"] = CheckTypeTable(Controls["Cam Name"])
+  for i=1, PropPresetNum do
+    Controls["Preset Cam "..i] = CheckTypeTable(Controls["Preset Cam "..i])
+    Controls["Preset Cam LED "..i] = CheckTypeTable(Controls["Preset Cam LED "..i])
+  end
+  local PropCamNum = Properties["Number of Cameras"].Value --#Controls["Cam Name"]
+  ----------------------------------------------------------------------------------------------
+  -- Iterate through Components to find cameras of type 'onvif_camera_operative'
+  for _, comps in pairs(Component.GetComponents()) do
+    if comps.Type == "onvif_camera_operative" then table.insert(cam_tbl, comps.Name) end
+  end
+  table.insert(cam_tbl, "none")
+  -- Create PresetLED State function
+  function PresetLED(cam_num, preset_num)
+    for preset_num, ctl in ipairs(Controls['Preset Cam LED '..cam_num]) do
+      if Cameras[cam_num] and Controls['Preset Cam '..cam_num][preset_num].String ~= "" then
+        ctl.Boolean = Cameras[cam_num].String == Controls['Preset Cam '..cam_num][preset_num].String
+      end
+    end
+  end
+  -- Create Cam Name.Choices cam_tbl from ComponetName
+  for i=1, PropCamNum do Controls['Cam Name '..i].Choices = cam_tbl end
+  -- Create Cam Name Eventhandlers
+  for cam_num=1, PropCamNum do
+    Controls['Cam Name '..cam_num].EventHandler = function()
+      if Controls['Cam Name '..cam_num].String == "none" then return end
+      if Controls['Cam Name '..cam_num].String ~= "" and Controls['Cam Name '..cam_num].String ~= "none" then
+        Cameras[cam_num], CamerasHome[cam_num] = Component.New(Controls['Cam Name '..cam_num].String)["ptz.preset"], Component.New(Controls['Cam Name '..cam_num].String)["preset.home.load"]
+        Cameras[cam_num].EventHandler = function()
+          --print('Controls["Cam Name '..cam_num..'"]', Controls['Cam Name '..cam_num].String, "Coordinate: ".. Cameras[cam_num].String)
+          camPos[cam_num] = Cameras[cam_num].String
+          --PresetLED(cam_num, preset_num)
+        end
+        Cameras[cam_num].EventHandler()--first initileze
+      end
+    end
+    Controls['Cam Name '..cam_num].EventHandler()--first initileze
+  end
+  
+  -- Create Press Hold Load or Save EventHandlers
+  local hold = {}
+  local count_downs = {}
+  for cam_num=1, PropCamNum do
+    hold[cam_num] = {}
+    count_downs[cam_num] = 0
+    for preset_num=1, PropPresetNum do
+      hold[cam_num][preset_num] = 0
+      Controls["SaveLoad Cam "..cam_num][preset_num].EventHandler = function(ctl)
+        count_downs[cam_num] = Controls['Set Home Minute'].Value*60
+        if Controls["SaveLoad Cam "..cam_num][preset_num].Boolean then
+          local function Save()
+            hold[cam_num][preset_num] = hold[cam_num][preset_num] + 1
+            --print("hold["..cam_num.."]["..preset_num.."]:" .. hold[cam_num][preset_num])
+            if hold[cam_num][preset_num] >= Controls["Hold Time"].Value / repeatime then
+              if camPos[cam_num] then
+                Controls["Preset Cam "..cam_num][preset_num].String = camPos[cam_num]
+                print("Long Press ".. "Saved: ".. "Cam Name: "..Controls["Cam Name "..cam_num].String.." Coordinate: "..camPos[cam_num])
+              end
+              Controls["Saved LED"].Boolean = true
+              Timer.CallAfter(function() Controls["Saved LED"].Boolean = false end, Controls["Saved LED Time"].Value)
+              hold[cam_num][preset_num] = 0
+            else
+              if Controls["SaveLoad Cam "..cam_num][preset_num].Boolean then
+                Timer.CallAfter(Save, repeatime) --Repeat function
+              else
+                hold[cam_num][preset_num] = 0
+                if Cameras[cam_num] then
+                  Cameras[cam_num].String = Controls["Preset Cam "..cam_num][preset_num].String
+                  print("Short Press " .. "Load: ".. "Cam Name: "..Controls["Cam Name "..cam_num].String.." Coordinate: "..camPos[cam_num])
+                end
+              end
+            end
+            PresetLED(cam_num, preset_num)
+          end
+          Timer.CallAfter(Save, repeatime) --Repeat function
+        else
+          hold[cam_num][preset_num] = 0
+        end
+        count_downs[cam_num] = Controls['Set Home Minute'].Value*60
+      end
+    end
+  end
+  -- Create round onedecimal
+  function OneDecimal(ctl) ctl.Value = tonumber(string.format("%.1f", ctl.Value)) end
+  -- Create Time Eventhandlers
+  Controls["Hold Time"].EventHandler = OneDecimal(Controls["Hold Time"])
+  Controls["Saved LED Time"].EventHandler = OneDecimal(Controls["Saved LED Time"])
+  -- Set home after settime function
+  function SetHome(cam_num)
+    Controls['Set Home '..cam_num].EventHandler = function()
+      count_downs[cam_num] = Controls['Set Home Minute'].Value*60--convert second
+      if Controls['Set Home '..cam_num].Boolean then
+        local function CountDown()
+          count_downs[cam_num] = count_downs[cam_num] - 1
+          local minutes, seconds = math.floor(count_downs[cam_num] / 60), count_downs[cam_num] % 60
+          local remain = string.format("%d min %d sec", minutes, seconds)
+          Controls['Set Home '..cam_num].Legend = remain
+          if count_downs[cam_num] <= 0 then
+            if CamerasHome[cam_num] then CamerasHome[cam_num]:Trigger()
+            Timer.CallAfter(function() PresetLED(cam_num, preset_num) end, 1.5)
+            end
+            Controls['Set Home '..cam_num].Legend = "Executed"
+            count_downs[cam_num] = Controls['Set Home Minute'].Value*60
+            Timer.CallAfter(CountDown, 1)
+          else
+            if Controls['Set Home '..cam_num].Boolean then
+              Timer.CallAfter(CountDown, 1)
+            else
+              Controls['Set Home '..cam_num].Legend = "Stop"
+              count_downs[cam_num] = Controls['Set Home Minute'].Value*60
+            end
+          end
+        end
+        local init = string.format("%d min %d sec", math.floor(count_downs[cam_num] / 60), count_downs[cam_num] % 60)
+        Controls['Set Home '..cam_num].Legend = init
+        Timer.CallAfter(CountDown, 1)
+      else
+        Controls['Set Home '..cam_num].Legend = "Stop"
+        count_downs[cam_num] = Controls['Set Home Minute'].Value*60
+      end
+    end
+    Controls['Set Home '..cam_num].EventHandler()
+  end
+  
+  function OnePointfive(ctl) ctl.Value = tonumber(string.format("%.0f", ctl.Value * 2)) / 2 end
+  Controls["Set Home Minute"].EventHandler = function(ctl)
+    OnePointfive(ctl)
+    for cam_num=1, PropCamNum do count_downs[cam_num] = Controls['Set Home Minute'].Value*60 end
+  end
+  
+  -- Search my code name function
+  function MyCodeName()
+    local id = Controls.MyID
+    if id.String == "" or nil then id.String = math.random() end
+    for _, components in pairs(Component.GetComponents()) do
+      for _, controls in pairs (Component.GetControls(components.Name)) do
+        if controls.Name == "MyID" and controls.String == id.String then
+          return components.Name
+        end
+      end
+    end
+  end
+  -- Export Import from component
+  this = {
+    Name = '',
+    init = function() this.Name = Component.New(MyCodeName()) end,
+    --export position
+    export = function()
+    local thisCtrls = Component.GetControls(this.Name)
+    local ctltbl = {}
+  
+    for _, ctrl in pairs(thisCtrls) do
+      if ctrl.Type == "Text" and ctrl.Name:find("Preset Cam") then
+        table.insert(ctltbl, { Name = ctrl.Name, String = ctrl.String })
+      end
+    end
+      Controls.Memorytext.String = json.encode(ctltbl)--, { pretty = true } Crypto.Base64Encode
+      print(json.encode(ctltbl, { pretty = true }))
+    end,
+    --import position
+    import = function()
+      local memory = json.decode(Controls.Memorytext.String) -- Crypto.Base64Decode
+      print(json.encode(Controls.Memorytext.String))
+      if memory then
+        for _, str in pairs(memory) do
+          if str.Name and this.Name[str.Name] then
+            this.Name[str.Name].String = str.String
+          end
+        end
+      end
+    end,
+  }
+  
+  Controls.Export.EventHandler = this.export
+  Controls.Import.EventHandler = this.import
+  if MyCodeName()~= nil then this.init() end
+  --Initilize----------------------------------------------------------------------------------
+  for cam_num=1, PropCamNum do PresetLED(cam_num, preset_num) end
+  for cam_num=1, PropCamNum do SetHome(cam_num) end
+end

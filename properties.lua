@@ -12,3 +12,9 @@ table.insert(props, {
   Max = 30,
   Value = 4,
 })
+table.insert(props, {
+  Name = "Presets Equal Position LED",
+  Type = "enum",
+  Choices = {"Yes","No"},
+  Value = "Yes",
+})

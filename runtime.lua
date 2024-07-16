@@ -5,6 +5,7 @@ local camPos = {}
 local Cameras, CamerasHome = {}, {}
 local PropPresetNum = Properties["Number of Presets"].Value --#Controls["Preset Cam 1"]
 local repeatime = 0.2
+print('Presets Equal Position LED : ' .. Properties['Presets Equal Position LED'].Value)
 ----------------------------------------------------------------------------------------------
 -- Create func return table if not table to check if Controls type is table
 function CheckTypeTable(control) return type(control) == "table" and control or {control} end
@@ -24,7 +25,20 @@ table.insert(cam_tbl, "none")
 function PresetLED(cam_num, preset_num)
   for preset_num, ctl in ipairs(Controls['Preset Cam LED '..cam_num]) do
     if Cameras[cam_num] and Controls['Preset Cam '..cam_num][preset_num].String ~= "" then
-      ctl.Boolean = Cameras[cam_num].String == Controls['Preset Cam '..cam_num][preset_num].String
+      --ctl.Boolean = Cameras[cam_num].String == Controls['Preset Cam '..cam_num][preset_num].String
+      local camerasPos_Vals = {}
+      local presetPos_Vals = {}
+      for value in Cameras[cam_num].String:gmatch("[-%d%.]+") do table.insert(camerasPos_Vals, tonumber(value)) end
+      for value in Controls['Preset Cam '..cam_num][preset_num].String:gmatch("[-%d%.]+") do table.insert(presetPos_Vals, tonumber(value)) end
+      local isEqual = true
+      if #camerasPos_Vals == #presetPos_Vals then
+        for i = 1, #camerasPos_Vals do
+          if string.format('%.4f', camerasPos_Vals[i]) ~= string.format('%.4f', presetPos_Vals[i]) then isEqual = false end
+        end
+      else
+        isEqual = false
+      end
+      ctl.Boolean = isEqual
     end
   end
 end
@@ -39,7 +53,7 @@ for cam_num=1, PropCamNum do
       Cameras[cam_num].EventHandler = function()
         --print('Controls["Cam Name '..cam_num..'"]', Controls['Cam Name '..cam_num].String, "Coordinate: ".. Cameras[cam_num].String)
         camPos[cam_num] = Cameras[cam_num].String
-        --PresetLED(cam_num, preset_num)
+        if Properties['Presets Equal Position LED'].Value == 'Yes' then PresetLED(cam_num, preset_num) end
       end
       Cameras[cam_num].EventHandler()--first initileze
     end

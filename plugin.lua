@@ -14,11 +14,6 @@ function GetPrettyName(props)
 end
 --List the pages within the plugin
 PageNames = { "Control of Cameras" }
-function GetPages(props)
-  local pages = {}
-  --[[ #include "pages.lua" ]]
-  return pages
-end
 
 -- Define User configurable Properties of the plugin
 function GetProperties()
